@@ -89,7 +89,7 @@ namespace N1T1Tool
         {
             if (File.Exists(path))
             {
-                using (m_Server = new TftpServer(new IPEndPoint(IPAddress.Any, RemotePort)))
+                using (m_Server = new TftpServer())
                 {
                     m_Server.OnReadRequest += OnReadRequest;
 
