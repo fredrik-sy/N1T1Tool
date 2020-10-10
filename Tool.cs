@@ -3,6 +3,8 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
 using Tftp.Net;
 
 namespace N1T1Tool
@@ -11,16 +13,19 @@ namespace N1T1Tool
     {
         private const int LocalPort = 24987;
         private const int RemotePort = 24988;
+        private const string UBoot = "uboot.bin";
+        private const string UImage = "uImage_nt1_netenc";
 
         private TftpServer m_Server;
         private UdpClient m_Client;
-        private IPEndPoint m_Remote;
+        private IPEndPoint m_RemoteBroadcastEP;
+        private IPEndPoint m_RemoteEP;
         private Device m_Device;
         private string m_Path;
 
         public Tool()
         {
-            m_Remote = new IPEndPoint(IPAddress.Broadcast, RemotePort);
+            m_RemoteBroadcastEP = new IPEndPoint(IPAddress.Broadcast, RemotePort);
         }
 
         public int StatusCode { get; private set; }
@@ -29,8 +34,8 @@ namespace N1T1Tool
         {
             try
             {
-                m_Client.Send(new Device() { OpCode = (byte)OpCode.RequestInfo }, Device.Size, m_Remote);
-                m_Device = m_Client.Receive(ref m_Remote);
+                m_Client.Send(new Device() { OpCode = (byte)OpCode.RequestInfo }, Device.Size, m_RemoteBroadcastEP);
+                m_Device = m_Client.Receive(ref m_RemoteEP);
                 return true;
             }
             catch
@@ -44,8 +49,8 @@ namespace N1T1Tool
             try
             {
                 m_Device.OpCode = (byte)OpCode.RequestDHCP;
-                m_Client.Send(m_Device, Device.Size, m_Remote);
-                m_Device = m_Client.Receive(ref m_Remote);
+                m_Client.Send(m_Device, Device.Size, m_RemoteBroadcastEP);
+                m_Device = m_Client.Receive(ref m_RemoteEP);
                 return m_Device.OpCode == (byte)OpCode.DHCPOk;
             }
             catch
@@ -54,14 +59,25 @@ namespace N1T1Tool
             }
         }
 
-        private bool InitiateDeviceUpdate()
+        private bool InitiateDeviceUpdate(string path)
         {
             try
             {
+                char delimiter = ' ';
+                StringBuilder builder = new StringBuilder();
+                builder.Append(UImage);
+                builder.Append(delimiter);
+                builder.Append(Path.GetFileName(path));
+                builder.Append(delimiter);
+                builder.Append(0);
+                builder.Append(delimiter);
+                builder.Append(UBoot);
+
                 m_Device.OpCode = (byte)OpCode.RequestUpdate;
-                m_Client.Send(m_Device, Device.Size);
-                m_Device = m_Client.Receive(ref m_Remote);
-                return m_Device.OpCode == (byte)OpCode.RequestUpdate;
+                m_Device.ServerDescription = builder.ToString();
+                m_Client.Send(m_Device, Device.Size, m_RemoteBroadcastEP);
+                m_Device = m_Client.Receive(ref m_RemoteEP);
+                return m_Device.OpCode == (byte)OpCode.RequestInfo;
             }
             catch
             {
@@ -73,22 +89,24 @@ namespace N1T1Tool
         {
             if (File.Exists(path))
             {
-                using (m_Server = new TftpServer())
+                using (m_Server = new TftpServer(new IPEndPoint(IPAddress.Any, RemotePort)))
                 {
                     m_Server.OnReadRequest += OnReadRequest;
 
                     using (m_Client = new UdpClient(new IPEndPoint(IPAddress.Any, LocalPort)))
                     {
-                        if (!RequestDeviceInfo() || !ConfigureDeviceForDHCP())
+                        if (!RequestDeviceInfo() || !ConfigureDeviceForDHCP() || !RequestDeviceInfo())
                         {
                             return;
                         }
 
-                        if (InitiateDeviceUpdate())
+                        if (InitiateDeviceUpdate(path))
                         {
                             m_Path = path;
                             m_Server.Start();
                         }
+
+                        Console.Read();
                     }
                 }
             }
@@ -96,16 +114,16 @@ namespace N1T1Tool
 
         private void OnReadRequest(ITftpTransfer transfer, EndPoint client)
         {
-            if (transfer.Filename == "uboot.bin" || transfer.Filename == "uImage_nt1_netenc")
+            if (transfer.Filename == UBoot || transfer.Filename == UImage)
             {
                 using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(transfer.Filename))
                 {
                     transfer.Start(stream);
                 }
             }
-            else if (transfer.Filename == m_Path)
+            else if (transfer.Filename == Path.GetFileName(m_Path))
             {
-                using (FileStream stream = new FileStream(transfer.Filename, FileMode.Open))
+                using (FileStream stream = new FileStream(m_Path, FileMode.Open))
                 {
                     transfer.Start(stream);
                 }
