@@ -4,7 +4,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 using Tftp.Net;
 
 namespace N1T1Tool
@@ -13,8 +12,9 @@ namespace N1T1Tool
     {
         private const int LocalPort = 24987;
         private const int RemotePort = 24988;
-        private const string UBoot = "uboot.bin";
-        private const string UImage = "uImage_nt1_netenc";
+        private const string ResourcePath = "N1T1Tool.Resources.";
+        private const string UBootName = "uboot.bin";
+        private const string UImageName = "uImage_nt1_netenc";
 
         private TftpServer m_Server;
         private UdpClient m_Client;
@@ -65,13 +65,13 @@ namespace N1T1Tool
             {
                 char delimiter = ' ';
                 StringBuilder builder = new StringBuilder();
-                builder.Append(UImage);
+                builder.Append(UImageName);
                 builder.Append(delimiter);
                 builder.Append(Path.GetFileName(path));
                 builder.Append(delimiter);
                 builder.Append(0);
                 builder.Append(delimiter);
-                builder.Append(UBoot);
+                builder.Append(UBootName);
 
                 m_Device.OpCode = (byte)OpCode.RequestUpdate;
                 m_Device.ServerDescription = builder.ToString();
@@ -114,9 +114,9 @@ namespace N1T1Tool
 
         private void OnReadRequest(ITftpTransfer transfer, EndPoint client)
         {
-            if (transfer.Filename == UBoot || transfer.Filename == UImage)
+            if (transfer.Filename == UBootName || transfer.Filename == UImageName)
             {
-                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(transfer.Filename))
+                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourcePath + transfer.Filename))
                 {
                     transfer.Start(stream);
                 }
