@@ -95,18 +95,16 @@ namespace N1T1Tool
 
                     using (m_Client = new UdpClient(new IPEndPoint(IPAddress.Any, LocalPort)))
                     {
-                        if (!RequestDeviceInfo() || !ConfigureDeviceForDHCP() || !RequestDeviceInfo())
-                        {
-                            return;
-                        }
-
-                        if (InitiateDeviceUpdate(path))
+                        if (RequestDeviceInfo() && ConfigureDeviceForDHCP() && RequestDeviceInfo())
                         {
                             m_Path = path;
                             m_Server.Start();
-                        }
 
-                        Console.Read();
+                            if (InitiateDeviceUpdate(path))
+                            {
+                                Console.Read();
+                            }
+                        }
                     }
                 }
             }
