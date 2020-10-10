@@ -1,9 +1,9 @@
-using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using Tftp.Net;
 
 namespace N1T1Tool
@@ -22,13 +22,14 @@ namespace N1T1Tool
         private IPEndPoint m_RemoteEP;
         private Device m_Device;
         private string m_Path;
+        private bool m_TransferHasFinished;
+        private bool m_TransferHasError;
 
         public Tool()
         {
             m_RemoteBroadcastEP = new IPEndPoint(IPAddress.Broadcast, RemotePort);
+            m_Client.Client.ReceiveTimeout = 3000;
         }
-
-        public int StatusCode { get; private set; }
 
         private bool RequestDeviceInfo()
         {
@@ -85,7 +86,7 @@ namespace N1T1Tool
             }
         }
 
-        public void SendInitrd(string path)
+        public StatusCode SendInitrd(string path)
         {
             if (File.Exists(path))
             {
@@ -95,18 +96,48 @@ namespace N1T1Tool
 
                     using (m_Client = new UdpClient(new IPEndPoint(IPAddress.Any, LocalPort)))
                     {
-                        if (RequestDeviceInfo() && ConfigureDeviceForDHCP() && RequestDeviceInfo())
+                        if (!RequestDeviceInfo())
                         {
-                            m_Path = path;
-                            m_Server.Start();
-
-                            if (InitiateDeviceUpdate(path))
-                            {
-                                Console.Read();
-                            }
+                            return StatusCode.DeviceNotFound;
                         }
+
+                        if (!ConfigureDeviceForDHCP())
+                        {
+                            return StatusCode.DHCPConifgureFailed;
+                        }
+
+                        if (!RequestDeviceInfo())
+                        {
+                            return StatusCode.DeviceNotFound;
+                        }
+
+                        m_Path = path;
+                        m_TransferHasError = false;
+                        m_TransferHasFinished = false;
+                        m_Server.Start();
+
+                        if (!InitiateDeviceUpdate(path))
+                        {
+                            return StatusCode.UpdateFailed;
+                        }
+
+                        while (!m_TransferHasFinished)
+                        {
+                            if (m_TransferHasError)
+                            {
+                                return StatusCode.TFTPFailed;
+                            }
+
+                            Thread.Sleep(1000);
+                        }
+
+                        return StatusCode.Success;
                     }
                 }
+            }
+            else
+            {
+                return StatusCode.FileNotFound;
             }
         }
 
@@ -114,22 +145,29 @@ namespace N1T1Tool
         {
             if (transfer.Filename == UBootName || transfer.Filename == UImageName)
             {
-                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourcePath + transfer.Filename))
-                {
-                    transfer.Start(stream);
-                }
+                transfer.OnError += OnError;
+                transfer.Start(Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourcePath + transfer.Filename));
             }
             else if (transfer.Filename == Path.GetFileName(m_Path))
             {
-                using (FileStream stream = new FileStream(m_Path, FileMode.Open))
-                {
-                    transfer.Start(stream);
-                }
+                transfer.OnError += OnError;
+                transfer.OnFinished += OnFinished;
+                transfer.Start(new FileStream(m_Path, FileMode.Open));
             }
             else
             {
                 transfer.Cancel(TftpErrorPacket.AccessViolation);
             }
+        }
+
+        private void OnError(ITftpTransfer transfer, TftpTransferError error)
+        {
+            m_TransferHasError = true;
+        }
+
+        private void OnFinished(ITftpTransfer transfer)
+        {
+            m_TransferHasFinished = true;
         }
 
         private enum OpCode
