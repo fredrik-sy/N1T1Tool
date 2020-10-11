@@ -45,19 +45,60 @@ namespace N1T1Tool
             }
         }
 
+        private bool RequestDeviceName()
+        {
+            Console.Write("Device Name... ");
+
+            if (RequestDeviceInfo())
+            {
+                Console.WriteLine(m_Device.ServerName);
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("Failed");
+                return false;
+            }
+        }
+
+        private bool RequestDeviceIP()
+        {
+            Console.Write("Device IP... ");
+
+            if (RequestDeviceInfo())
+            {
+                Console.WriteLine(m_Device.ServerIP);
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("Failed");
+                return false;
+            }
+        }
+
         private bool ConfigureDeviceForDHCP()
         {
             try
             {
+                Console.Write("Configure DHCP... ");
                 m_Device.OpCode = (byte)OpCode.RequestDHCP;
                 m_Client.Send(m_Device, Device.Size, m_RemoteBroadcastEP);
                 m_Device = m_Client.Receive(ref m_RemoteEP);
-                return m_Device.OpCode == (byte)OpCode.DHCPOk;
+
+                if (m_Device.OpCode == (byte)OpCode.DHCPOk)
+                {
+                    Thread.Sleep(1000);
+                    Console.WriteLine("Done");
+                    return true;
+                }
             }
             catch
             {
-                return false;
             }
+
+            Console.WriteLine("Failed");
+            return false;
         }
 
         private bool InitiateDeviceUpdate(string path)
@@ -74,19 +115,27 @@ namespace N1T1Tool
                 builder.Append(delimiter);
                 builder.Append(UBootName);
 
+                Console.Write("Initiate Update...");
                 m_Device.OpCode = (byte)OpCode.RequestUpdate;
                 m_Device.ServerDescription = builder.ToString();
                 m_Client.Send(m_Device, Device.Size, m_RemoteBroadcastEP);
                 m_Device = m_Client.Receive(ref m_RemoteEP);
-                return m_Device.OpCode == (byte)OpCode.RequestInfo;
+
+                if (m_Device.OpCode == (byte)OpCode.RequestInfo)
+                {
+                    Console.WriteLine("Done");
+                    return true;
+                }
             }
             catch
             {
-                return false;
             }
+
+            Console.WriteLine("Failed");
+            return false;
         }
 
-        public StatusCode SendInitrd(string path)
+        public void SendInitrd(string path)
         {
             if (File.Exists(path))
             {
@@ -96,48 +145,26 @@ namespace N1T1Tool
 
                     using (m_Client = new UdpClient(new IPEndPoint(IPAddress.Any, LocalPort)))
                     {
-                        m_Client.Client.ReceiveTimeout = 3000;
-
-                        if (!RequestDeviceInfo())
-                            return StatusCode.DeviceNotFound;
-                        else
-                            Console.WriteLine("Device Found: " + m_Device.ServerName);
-
-                        if (!ConfigureDeviceForDHCP())
-                            return StatusCode.DHCPConifgureFailed;
-
-                        if (!RequestDeviceInfo())
-                            return StatusCode.DeviceNotFound;
-                        else
-                            Console.WriteLine("Device IP: " + m_Device.ServerIP);
-
+                        m_Client.Client.ReceiveTimeout = 2000;
                         m_Path = path;
                         m_TransferHasError = false;
                         m_TransferHasFinished = false;
                         m_Server.Start();
 
-                        if (!InitiateDeviceUpdate(path))
-                        {
-                            return StatusCode.UpdateFailed;
-                        }
+                        if (!RequestDeviceName() || !ConfigureDeviceForDHCP() || !RequestDeviceIP() || !InitiateDeviceUpdate(path))
+                            return;
 
                         while (!m_TransferHasFinished)
                         {
                             if (m_TransferHasError)
                             {
-                                return StatusCode.TFTPFailed;
+                                return;
                             }
 
                             Thread.Sleep(1000);
                         }
-
-                        return StatusCode.Success;
                     }
                 }
-            }
-            else
-            {
-                return StatusCode.FileNotFound;
             }
         }
 
@@ -145,13 +172,12 @@ namespace N1T1Tool
         {
             if (transfer.Filename == UBootName || transfer.Filename == UImageName)
             {
-                transfer.OnError += OnError;
+                SetUpTransfer(transfer);
                 transfer.Start(Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourcePath + transfer.Filename));
             }
             else if (transfer.Filename == Path.GetFileName(m_Path))
             {
-                transfer.OnError += OnError;
-                transfer.OnFinished += OnFinished;
+                SetUpTransfer(transfer);
                 transfer.Start(new FileStream(m_Path, FileMode.Open));
             }
             else
@@ -160,13 +186,22 @@ namespace N1T1Tool
             }
         }
 
+        private void SetUpTransfer(ITftpTransfer transfer)
+        {
+            Console.Write($"Transferring {transfer.Filename}... ");
+            transfer.OnError += OnError;
+            transfer.OnFinished += OnFinished;
+        }
+
         private void OnError(ITftpTransfer transfer, TftpTransferError error)
         {
+            Console.WriteLine("Failed");
             m_TransferHasError = true;
         }
 
         private void OnFinished(ITftpTransfer transfer)
         {
+            Console.WriteLine("Done");
             m_TransferHasFinished = true;
         }
 
