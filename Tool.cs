@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -28,7 +29,6 @@ namespace N1T1Tool
         public Tool()
         {
             m_RemoteBroadcastEP = new IPEndPoint(IPAddress.Broadcast, RemotePort);
-            m_Client.Client.ReceiveTimeout = 3000;
         }
 
         private bool RequestDeviceInfo()
@@ -96,20 +96,20 @@ namespace N1T1Tool
 
                     using (m_Client = new UdpClient(new IPEndPoint(IPAddress.Any, LocalPort)))
                     {
+                        m_Client.Client.ReceiveTimeout = 3000;
+
                         if (!RequestDeviceInfo())
-                        {
                             return StatusCode.DeviceNotFound;
-                        }
+                        else
+                            Console.WriteLine("Device Found: " + m_Device.ServerName);
 
                         if (!ConfigureDeviceForDHCP())
-                        {
                             return StatusCode.DHCPConifgureFailed;
-                        }
 
                         if (!RequestDeviceInfo())
-                        {
                             return StatusCode.DeviceNotFound;
-                        }
+                        else
+                            Console.WriteLine("Device IP: " + m_Device.ServerIP);
 
                         m_Path = path;
                         m_TransferHasError = false;
