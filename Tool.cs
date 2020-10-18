@@ -47,7 +47,7 @@ namespace N1T1Tool
 
         private bool RequestDeviceName()
         {
-            Console.Write("Device Name... ");
+            Console.Write("Find Device... ");
 
             if (RequestDeviceInfo())
             {
@@ -63,7 +63,7 @@ namespace N1T1Tool
 
         private bool RequestDeviceIP()
         {
-            Console.Write("Device IP... ");
+            Console.Write("Get Device IP... ");
 
             if (RequestDeviceInfo())
             {
@@ -88,7 +88,7 @@ namespace N1T1Tool
 
                 if (m_Device.OpCode == (byte)OpCode.DHCPOk)
                 {
-                    Thread.Sleep(1000);
+                    Thread.Sleep(5000);
                     Console.WriteLine("Done");
                     return true;
                 }
@@ -115,7 +115,7 @@ namespace N1T1Tool
                 builder.Append(delimiter);
                 builder.Append(UBootName);
 
-                Console.Write("Initiate Update...");
+                Console.Write("Initiate Update... ");
                 m_Device.OpCode = (byte)OpCode.RequestUpdate;
                 m_Device.ServerDescription = builder.ToString();
                 m_Client.Send(m_Device, Device.Size, m_RemoteBroadcastEP);
@@ -202,7 +202,9 @@ namespace N1T1Tool
         private void OnFinished(ITftpTransfer transfer)
         {
             Console.WriteLine("Done");
-            m_TransferHasFinished = true;
+
+            if (transfer.Filename == Path.GetFileName(m_Path))
+                m_TransferHasFinished = true;
         }
 
         private enum OpCode
