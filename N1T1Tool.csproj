@@ -10,8 +10,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources\uboot.bin" />
     <EmbeddedResource Include="Resources\uImage_nt1_netenc" />
+    <EmbeddedResource Include="Resources\initrd_armel.gz" />
   </ItemGroup>
 
 </Project>

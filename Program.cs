@@ -9,11 +9,11 @@ namespace N1T1Tool
             if (args.Length == 1)
             {
                 Tool tool = new Tool();
-                tool.SendInitrd(args[0]);
+                tool.SendFirmware(args[0]);
             }
             else
             {
-                Console.WriteLine("Usage: " + System.AppDomain.CurrentDomain.FriendlyName + " [initrd-file]");
+                Console.WriteLine("Usage: " + System.AppDomain.CurrentDomain.FriendlyName + " [firmware-file]");
             }
         }
     }

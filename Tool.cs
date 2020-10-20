@@ -16,6 +16,7 @@ namespace N1T1Tool
         private const string ResourcePath = "N1T1Tool.Resources.";
         private const string UBootName = "uboot.bin";
         private const string UImageName = "uImage_nt1_netenc";
+        private const string InitrdName = "initrd_armel.gz";
 
         private TftpServer m_Server;
         private UdpClient m_Client;
@@ -109,9 +110,9 @@ namespace N1T1Tool
                 StringBuilder builder = new StringBuilder();
                 builder.Append(UImageName);
                 builder.Append(delimiter);
-                builder.Append(Path.GetFileName(path));
+                builder.Append(InitrdName);
                 builder.Append(delimiter);
-                builder.Append(0);
+                builder.Append(Path.GetFileName(path));
                 builder.Append(delimiter);
                 builder.Append(UBootName);
 
@@ -135,7 +136,7 @@ namespace N1T1Tool
             return false;
         }
 
-        public void SendInitrd(string path)
+        public void SendFirmware(string path)
         {
             if (File.Exists(path))
             {
@@ -170,7 +171,7 @@ namespace N1T1Tool
 
         private void OnReadRequest(ITftpTransfer transfer, EndPoint client)
         {
-            if (transfer.Filename == UBootName || transfer.Filename == UImageName)
+            if (transfer.Filename == UBootName || transfer.Filename == UImageName || transfer.Filename == InitrdName)
             {
                 SetUpTransfer(transfer);
                 transfer.Start(Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourcePath + transfer.Filename));
